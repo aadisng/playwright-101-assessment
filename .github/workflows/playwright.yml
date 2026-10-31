@@ -1,0 +1,44 @@
+name: Playwright assessment
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      cloud:
+        description: Run on TestMu cloud (requires repository secrets)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - if: ${{ !inputs.cloud }}
+        run: npx playwright install --with-deps chromium firefox
+      - if: ${{ !inputs.cloud }}
+        run: npm run test:local
+      - if: ${{ inputs.cloud }}
+        run: npm run test:cloud
+        env:
+          LT_USERNAME: ${{ secrets.LT_USERNAME }}
+          LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
+          LT_BUILD_NAME: Playwright 101 - GitHub run ${{ github.run_number }}
+      - if: ${{ always() && inputs.cloud }}
+        run: npm run sessions
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-assessment-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
